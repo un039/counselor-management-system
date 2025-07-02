@@ -7,6 +7,7 @@ import QuestionnaireManage from '../views/pc-counselor/QuestionnaireManage.vue';
 import QuestionnaireView from '../views/pc-counselor/QuestionnaireView.vue';
 import FamilyChat from '../views/pc-counselor/FamilyChat.vue';
 import HolidayNotice from '../views/pc-counselor/HolidayNotice.vue';
+import MemberManage from '../views/user/MemberManage.vue';
 
 const routes = [
   {
@@ -35,6 +36,9 @@ const routes = [
     ]
   },
   { path: '/', redirect: '/login' }, // 根路径直接重定向到登录页
+  { path: '/user', component: Layout, meta: { requiresAuth: true }, children: [
+    { path: 'member-manage', name: 'MemberManage', component: MemberManage }
+  ] },
   { path: '/:pathMatch(.*)*', redirect: '/login' } // 404路由重定向到登录页
 ];
 

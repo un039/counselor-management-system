@@ -9,4 +9,5 @@ export const getHouseData = () => request.get('/house/getData')
 
 Mock.mock('/api/auth/userInfo','get', userApi.getUserInfo())
 Mock.mock('/api/user/login','get', userApi.userLogin())
+Mock.mock('/api/user/list','get', userApi.getMemberList)
 export const userLogin = () => request.get('/api/user/login')
