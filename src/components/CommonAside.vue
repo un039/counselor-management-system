@@ -22,6 +22,9 @@
       <li :class="{ active: isActive('pc-counselor/family-chat') }">
         <router-link to="/pc-counselor/family-chat">亲属对话管理</router-link>
       </li>
+      <li :class="{ active: isActive('user/member-manage') }">
+        <router-link to="/user/member-manage">成员管理</router-link>
+      </li>
     </ul>
   </div>
 </template>
