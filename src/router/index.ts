@@ -1,19 +1,11 @@
-import {createRouter, createWebHistory} from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 import Layout from '../views/Layout.vue';
-import Login from '../views/Login.vue';
-import PCCounselorIndex from '../views/pc-counselor/Index.vue';
-import CustomSend from '../views/pc-counselor/CustomSend.vue';
-import QuestionnaireManage from '../views/pc-counselor/QuestionnaireManage.vue';
-import QuestionnaireView from '../views/pc-counselor/QuestionnaireView.vue';
-import FamilyChat from '../views/pc-counselor/FamilyChat.vue';
-import HolidayNotice from '../views/pc-counselor/HolidayNotice.vue';
-import MemberManage from '../views/user/MemberManage.vue';
 
 const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: Login
+    component: () => import('../views/Login.vue')
   },
   {
     path: '/pc-counselor',
@@ -23,23 +15,30 @@ const routes = [
       {
         path: '',
         name: 'PCCounselor',
-        component: PCCounselorIndex,
+        component: () => import('../views/pc-counselor/Index.vue'),
         children: [
-          { path: 'custom-send', name: 'CustomSend', component: CustomSend },
-          { path: 'questionnaire-manage', name: 'QuestionnaireManage', component: QuestionnaireManage },
-          { path: 'questionnaire-view', name: 'QuestionnaireView', component: QuestionnaireView },
-          { path: 'holiday-notice', name: 'HolidayNotice', component: HolidayNotice },
-          { path: 'family-chat', name: 'FamilyChat', component: FamilyChat },
-          { path: '', redirect: { name: 'CustomSend' } }
+          { path: 'dashboard', name: 'Dashboard', component: () => import('../views/pc-counselor/Dashboard.vue') },
+          { path: 'student-manage', name: 'StudentManage', component: () => import('../views/pc-counselor/StudentManage.vue') },
+          { path: 'custom-send', name: 'CustomSend', component: () => import('../views/pc-counselor/CustomSend.vue') },
+          { path: 'questionnaire-manage', name: 'QuestionnaireManage', component: () => import('../views/pc-counselor/QuestionnaireManage.vue') },
+          { path: 'questionnaire-view', name: 'QuestionnaireView', component: () => import('../views/pc-counselor/QuestionnaireView.vue') },
+          { path: 'holiday-notice', name: 'HolidayNotice', component: () => import('../views/pc-counselor/HolidayNotice.vue') },
+          { path: 'family-chat', name: 'FamilyChat', component: () => import('../views/pc-counselor/FamilyChat.vue') },
+          { path: '', redirect: { name: 'Dashboard' } }
         ]
       }
     ]
   },
-  { path: '/', redirect: '/login' }, // 根路径直接重定向到登录页
-  { path: '/user', component: Layout, meta: { requiresAuth: true }, children: [
-    { path: 'member-manage', name: 'MemberManage', component: MemberManage }
-  ] },
-  { path: '/:pathMatch(.*)*', redirect: '/login' } // 404路由重定向到登录页
+  {
+    path: '/user',
+    component: Layout,
+    meta: { requiresAuth: true },
+    children: [
+      { path: 'member-manage', name: 'MemberManage', component: () => import('../views/user/MemberManage.vue') }
+    ]
+  },
+  { path: '/', redirect: '/login' },
+  { path: '/:pathMatch(.*)*', redirect: '/login' }
 ];
 
 const router = createRouter({
@@ -47,20 +46,15 @@ const router = createRouter({
   routes
 });
 
-import { useUserInfoStore } from '../stores/userInfo';
-router.beforeEach((to, from, next) => {
-  try {
-    const userStore = useUserInfoStore();
-    const isLoggedIn = userStore.isLoggedIn;
-    // 检查目标路由是否需要登录
-    if (to.matched.some(record => record.meta.requiresAuth) && !isLoggedIn) {
-      next({ name: 'Login' });
-    } else {
-      next();
-    }
-  } catch (error) {
-    // 处理Pinia未初始化导致的错误，重定向到登录页
+// 全局前置守卫：基于本地 Token 判断登录态
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem('token');
+  if (to.matched.some(record => record.meta.requiresAuth) && !token) {
     next({ name: 'Login' });
+  } else if (to.name === 'Login' && token) {
+    next({ name: 'Dashboard' });
+  } else {
+    next();
   }
 });
 

@@ -11,5 +11,13 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  /* 改造前的遗留页面，未接入路由，暂不参与类型检查 */
+  "exclude": [
+    "src/views/house/**",
+    "src/views/user/UserList.vue",
+    "src/views/user/UserInfo.vue",
+    "src/views/user/RestPassword.vue",
+    "src/api/user.ts"
+  ]
 }

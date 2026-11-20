@@ -1,41 +1,43 @@
 import axios from "axios";
-import {ElMessage} from "element-plus";
-import {useRouter} from "vue-router";
-//{baseURL: '/api'}
-const instance = axios.create();
+import { ElMessage } from "element-plus";
 
-const router = useRouter()
+const instance = axios.create({
+    baseURL: '/api',
+    timeout: 15000
+});
 
-// axios 请求拦截
+// 请求拦截：自动携带 Token
 instance.interceptors.request.use(
     config => {
-      return config
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
     },
-    error => {
-      return Promise.reject(error)
-    }
-)
+    error => Promise.reject(error)
+);
 
-// axios 相应拦截
+// 响应拦截：统一解包 { code, data, message }
 instance.interceptors.response.use(
     result => {
-      if (result.data.code === 0) {
-          console.log(result)
-        return result.data
-      }
-      ElMessage.error(result.data.message ? result.data.message : '服务异常')
-      return Promise.reject(result.data)
-
+        if (result.data.code === 0) {
+            return result.data;
+        }
+        ElMessage.error(result.data.message || '服务异常');
+        return Promise.reject(result.data);
     },
     error => {
-      if (error.response.status === 70005) {
-        ElMessage.error("请先登录")
-        router.push('/login')
-      } else {
-        ElMessage.error('服务异常')
-      }
-      return Promise.reject(error)
+        if (error.response && error.response.status === 401) {
+            ElMessage.error('登录已失效，请重新登录');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user_info');
+            window.location.href = '/login';
+        } else {
+            ElMessage.error(error.response?.data?.message || '网络异常，请稍后重试');
+        }
+        return Promise.reject(error);
     }
-)
+);
 
-export default instance
+export default instance;

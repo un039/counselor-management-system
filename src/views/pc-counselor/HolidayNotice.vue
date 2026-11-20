@@ -1,121 +1,216 @@
 <template>
-  <div class="holiday-notice-page">
-    <h1>假期去向告知页面</h1>
-    <el-form :model="holidayForm" :rules="formRules" ref="formRef" label-width="120px">
-      <el-form-item label="假期名称" prop="holidayName">
-        <el-input v-model="holidayForm.holidayName" placeholder="请输入假期名称" />
-      </el-form-item>
-      <el-form-item label="开始时间" prop="startTime">
-        <el-date-picker v-model="holidayForm.startTime" type="date" placeholder="选择开始时间" />
-      </el-form-item>
-      <el-form-item label="结束时间" prop="endTime">
-        <el-date-picker v-model="holidayForm.endTime" type="date" placeholder="选择结束时间" />
-      </el-form-item>
-      <el-form-item label="去向说明" prop="destination">
-        <el-input v-model="holidayForm.destination" type="textarea" placeholder="请输入去向说明" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="submitForm">提交</el-button>
-        <el-button @click="resetForm">重置</el-button>
-      </el-form-item>
-    </el-form>
-    <el-table :data="holidayList" style="width: 100%">
-      <el-table-column prop="holidayName" label="假期名称" />
-      <el-table-column prop="startTime" label="开始时间" />
-      <el-table-column prop="endTime" label="结束时间" />
-      <el-table-column prop="destination" label="去向说明" />
-      <el-table-column label="操作">
+  <div class="holiday-page">
+    <h2 class="page-title">假期去向告知</h2>
+
+    <el-card shadow="never" class="form-card">
+      <el-form :model="form" label-width="110px" class="holiday-form">
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <el-form-item label="学生" required>
+              <el-select v-model="form.stuId" filterable placeholder="搜索学号/姓名" style="width: 100%">
+                <el-option
+                  v-for="s in students"
+                  :key="s.stuId"
+                  :label="`${s.stuName}（${s.stuId}）`"
+                  :value="s.stuId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="假期名称" required>
+              <el-select v-model="form.holidayName" style="width: 100%">
+                <el-option label="2026年寒假" value="2026年寒假" />
+                <el-option label="2026年暑假" value="2026年暑假" />
+                <el-option label="国庆假期" value="国庆假期" />
+                <el-option label="五一假期" value="五一假期" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="去向说明">
+              <el-input v-model="form.destination" placeholder="如：回家（成都）" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <el-form-item label="开始日期" required>
+              <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="结束日期" required>
+              <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label=" ">
+              <el-button type="primary" @click="submit">提交申报</el-button>
+              <el-button @click="showUnreported">查看未申报名单</el-button>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+    </el-card>
+
+    <div class="list-header">
+      <span>申报记录</span>
+      <span class="tip">共 {{ list.length }} 条 · 已通过 {{ approvedCount }} 条</span>
+    </div>
+
+    <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table-column prop="stuId" label="学号" width="130" />
+      <el-table-column prop="stuName" label="姓名" width="100" />
+      <el-table-column prop="className" label="班级" width="150" />
+      <el-table-column prop="holidayName" label="假期名称" width="120" />
+      <el-table-column prop="startDate" label="开始日期" width="120" />
+      <el-table-column prop="endDate" label="结束日期" width="120" />
+      <el-table-column prop="destination" label="去向说明" min-width="150" />
+      <el-table-column label="审核状态" width="110">
         <template #default="{ row }">
-          <el-button type="danger" size="small" @click="deleteRecord(row.id)">删除</el-button>
+          <el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
+        <template #default="{ row }">
+          <el-button v-if="row.status !== 'approved'" size="small" type="success" @click="audit(row, 'approved')">通过</el-button>
+          <el-button v-if="row.status !== 'rejected'" size="small" type="warning" @click="audit(row, 'rejected')">驳回</el-button>
+          <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
+
+    <el-dialog v-model="unreportedVisible" title="2026年寒假未申报名单" width="620px">
+      <el-table :data="unreported" border size="small" max-height="420">
+        <el-table-column prop="stuId" label="学号" width="140" />
+        <el-table-column prop="stuName" label="姓名" width="110" />
+        <el-table-column prop="className" label="班级" />
+        <el-table-column prop="phone" label="联系电话" width="140" />
+      </el-table>
+      <template #footer>
+        <span class="tip">共 {{ unreported.length }} 人未申报</span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  getHolidays, addHoliday, updateHolidayStatus, deleteHoliday,
+  getUnreported, getStudents
+} from '../../api';
 
-const formRef = ref(null)
-const holidayForm = reactive({
-  id: '',
-  holidayName: '',
-  startTime: '',
-  endTime: '',
+const list = ref<any[]>([]);
+const students = ref<any[]>([]);
+const unreported = ref<any[]>([]);
+const unreportedVisible = ref(false);
+const loading = ref(false);
+
+const form = reactive({
+  stuId: '',
+  holidayName: '2026年寒假',
+  startDate: '2026-01-15',
+  endDate: '2026-02-20',
   destination: ''
-})
+});
 
-const holidayList = ref([])
+const approvedCount = computed(() => list.value.filter(r => r.status === 'approved').length);
 
-const formRules = {
-  holidayName: [
-    { required: true, message: '请输入假期名称', trigger: 'blur' }
-  ],
-  startTime: [
-    { required: true, message: '请选择开始时间', trigger: 'change' }
-  ],
-  endTime: [
-    { required: true, message: '请选择结束时间', trigger: 'change' }
-  ],
-  destination: [
-    { required: true, message: '请输入去向说明', trigger: 'blur' }
-  ]
-}
+const statusText = (s: string) =>
+    ({ pending: '待审核', approved: '已通过', rejected: '已驳回' }[s] || s);
+const statusType = (s: string) =>
+    ({ pending: 'warning', approved: 'success', rejected: 'danger' }[s] || 'info');
 
-const submitForm = async () => {
-  if (!formRef.value) return
-  await formRef.value.validate((valid) => {
-    if (valid) {
-      if (holidayForm.id) {
-        // 更新记录
-        const index = holidayList.value.findIndex(item => item.id === holidayForm.id)
-        if (index !== -1) {
-          holidayList.value[index] = { ...holidayForm }
-          ElMessage.success('更新成功')
-        }
-      } else {
-        // 新增记录
-        const newRecord = { ...holidayForm, id: Date.now().toString() }
-        holidayList.value.push(newRecord)
-        ElMessage.success('提交成功')
-      }
-      resetForm()
-    } else {
-      ElMessage.error('请正确填写表单')
-      return false
-    }
-  })
-}
+const load = async () => {
+  loading.value = true;
+  try {
+    const res: any = await getHolidays();
+    list.value = res.data;
+  } finally {
+    loading.value = false;
+  }
+};
 
-const resetForm = () => {
-  holidayForm.id = ''
-  holidayForm.holidayName = ''
-  holidayForm.startTime = ''
-  holidayForm.endTime = ''
-  holidayForm.destination = ''
-}
+const loadStudents = async () => {
+  const res: any = await getStudents({ page: 1, pageSize: 500, status: 'active' });
+  students.value = res.data.list;
+};
 
-const deleteRecord = (id) => {
-  holidayList.value = holidayList.value.filter(item => item.id !== id)
-  ElMessage.success('删除成功')
-}
+const submit = async () => {
+  if (!form.stuId || !form.holidayName || !form.startDate || !form.endDate) {
+    ElMessage.warning('请填写学生、假期名称与起止日期');
+    return;
+  }
+  if (new Date(form.endDate) < new Date(form.startDate)) {
+    ElMessage.warning('结束日期不能早于开始日期');
+    return;
+  }
+  try {
+    await addHoliday({ ...form });
+    ElMessage.success('申报成功');
+    form.stuId = '';
+    form.destination = '';
+    load();
+  } catch {
+    // 拦截器已提示
+  }
+};
+
+const audit = async (row: any, status: string) => {
+  await updateHolidayStatus(row.reportId, status);
+  ElMessage.success('审核完成');
+  load();
+};
+
+const remove = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定删除该条申报记录吗？`, '删除确认', { type: 'warning' });
+    await deleteHoliday(row.reportId);
+    ElMessage.success('已删除');
+    load();
+  } catch {
+    // 取消
+  }
+};
+
+const showUnreported = async () => {
+  const res: any = await getUnreported('2026年寒假');
+  unreported.value = res.data;
+  unreportedVisible.value = true;
+};
+
+onMounted(async () => {
+  await Promise.all([load(), loadStudents()]);
+});
 </script>
 
 <style scoped>
-.holiday-notice-page {
-  padding: 20px;
-  background-color: #fff;
+.page-title {
+  margin: 0 0 16px;
+  font-size: 18px;
+  color: #1f2d3d;
+}
+.form-card {
+  margin-bottom: 16px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-
-h1 {
-  color: #333;
-  margin-bottom: 20px;
+.holiday-form :deep(.el-form-item) {
+  margin-bottom: 12px;
 }
-
-.el-form {
-  margin-bottom: 20px;
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #303133;
+}
+.tip {
+  font-size: 12px;
+  color: #8a94a6;
+  font-weight: 400;
 }
 </style>

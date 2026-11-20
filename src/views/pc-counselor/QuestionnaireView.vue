@@ -1,153 +1,231 @@
 <template>
-  <div class="questionnaire-view-page">
+  <div class="qnaire-view">
     <div class="page-header">
-      <h2>问卷查询情况</h2>
-      <el-button type="primary" @click="exportData">导出数据</el-button>
+      <h2>问卷查阅情况</h2>
+      <el-button type="primary" plain @click="exportCsv">导出数据</el-button>
     </div>
 
-    <el-card class="search-card">
-      <el-select v-model="searchParams.questionnaireId" placeholder="选择问卷" style="width: 200px; margin-right: 10px;">
-        <el-option v-for="item in questionnaireList" :key="item.id" :label="item.title" :value="item.id" />
+    <el-card shadow="never" class="filter-card">
+      <el-select v-model="qnaireId" placeholder="选择问卷" style="width: 260px" @change="onQnaireChange">
+        <el-option v-for="q in qnaires" :key="q.qnaireId" :label="q.title" :value="q.qnaireId" />
       </el-select>
-      <el-date-picker
-        v-model="searchParams.dateRange"
-        type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
-        style="width: 300px; margin-right: 10px;"
-      />
-      <el-select v-model="searchParams.status" placeholder="提交状态" style="width: 150px; margin-right: 10px;">
-        <el-option label="全部" value="" />
+      <el-select v-model="status" placeholder="提交状态" clearable style="width: 150px" @change="loadSubmissions">
         <el-option label="已提交" value="submitted" />
         <el-option label="未提交" value="unsubmitted" />
       </el-select>
-      <el-button type="primary" @click="searchResults">查询</el-button>
-      <el-button @click="resetSearch">重置</el-button>
+      <el-input
+        v-model="keyword" placeholder="学生姓名 / 学号" clearable style="width: 200px"
+        @keyup.enter="loadSubmissions"
+      />
+      <el-button type="primary" @click="loadSubmissions">查询</el-button>
+      <el-button @click="resetFilter">重置</el-button>
     </el-card>
 
-    <div class="statistics-card">
-      <el-card class="stat-item">
-        <div class="stat-value">{{ totalCount }}</div>
-        <div class="stat-label">总提交数</div>
-      </el-card>
-      <el-card class="stat-item">
-        <div class="stat-value">{{ submittedCount }}</div>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">应提交人数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value success">{{ stats.submitted }}</div>
         <div class="stat-label">已提交</div>
-      </el-card>
-      <el-card class="stat-item">
-        <div class="stat-value">{{ unsubmittedCount }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value warning">{{ stats.total - stats.submitted }}</div>
         <div class="stat-label">未提交</div>
-      </el-card>
-      <el-card class="stat-item">
-        <div class="stat-value">{{ completionRate }}%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ stats.rate }}%</div>
         <div class="stat-label">完成率</div>
-      </el-card>
+      </div>
     </div>
 
-    <el-table :data="tableData" style="width: 100%">
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="questionnaireTitle" label="问卷名称" />
-      <el-table-column prop="studentName" label="学生姓名" />
-      <el-table-column prop="className" label="班级" />
-      <el-table-column prop="submitTime" label="提交时间" width="180" />
-      <el-table-column prop="status" label="状态" width="100">
-        <template #default="scope">
-          <el-tag :type="scope.row.status === 'submitted' ? 'success' : 'warning'">{{ scope.row.status === 'submitted' ? '已提交' : '未提交' }}</el-tag>
+    <el-card shadow="never" class="chart-card" v-if="stats.questions?.length">
+      <template #header>
+        <div class="chart-header">
+          <span>题目作答分布</span>
+          <el-select v-model="questionIndex" style="width: 340px" @change="renderChart">
+            <el-option
+              v-for="(q, i) in stats.questions"
+              :key="q.questionId"
+              :label="`第${i + 1}题：${q.content}`"
+              :value="i"
+            />
+          </el-select>
+        </div>
+      </template>
+      <div ref="chartRef" class="chart"></div>
+    </el-card>
+
+    <el-table :data="submissions" border stripe v-loading="loading" style="width: 100%">
+      <el-table-column prop="stuId" label="学号" width="130" />
+      <el-table-column prop="stuName" label="学生姓名" width="110" />
+      <el-table-column prop="className" label="班级" width="160" />
+      <el-table-column prop="submitTime" label="提交时间" width="180">
+        <template #default="{ row }">{{ row.submitTime || '-' }}</template>
+      </el-table-column>
+      <el-table-column label="状态" width="110">
+        <template #default="{ row }">
+          <el-tag :type="row.status === 'submitted' ? 'success' : 'warning'" size="small">
+            {{ row.status === 'submitted' ? '已提交' : '未提交' }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="120">
-        <template #default="scope">
-          <el-button size="small" v-if="scope.row.status === 'submitted'" @click="viewDetails(scope.row)">查看详情</el-button>
+        <template #default="{ row }">
+          <el-button size="small" v-if="row.status === 'submitted'" @click="viewDetail(row)">查看详情</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="detailVisible" title="问卷详情" width="60%">
-      <div v-if="currentDetail" class="detail-content">
-        <h3>{{ currentDetail.questionnaireTitle }}</h3>
-        <p><strong>提交人：</strong>{{ currentDetail.studentName }} ({{ currentDetail.className }})</p>
-        <p><strong>提交时间：</strong>{{ currentDetail.submitTime }}</p>
-        <div class="questions">
-          <div v-for="(q, index) in currentDetail.questions" :key="index" class="question-item">
-            <p><strong>{{ index + 1 }}. {{ q.title }}</strong></p>
-            <p class="answer">{{ q.answer }}</p>
-          </div>
-        </div>
+    <el-dialog v-model="detailVisible" title="问卷作答详情" width="620px">
+      <p class="detail-head">{{ currentStu?.stuName }}（{{ currentStu?.stuId }}）· {{ currentStu?.className }}</p>
+      <div v-for="(a, i) in answers" :key="i" class="answer-item">
+        <p class="q">{{ i + 1 }}. {{ a.content }}</p>
+        <p class="a">{{ a.answer || '（未填写）' }}</p>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { onMounted, onBeforeUnmount, reactive, ref, nextTick } from 'vue';
+import * as echarts from 'echarts/core';
+import { BarChart } from 'echarts/charts';
+import { TooltipComponent, GridComponent, AxisPointerComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { ElMessage } from 'element-plus';
+import { getQnaires, getQnaireStats, getSubmissions, getAnswerDetail } from '../../api';
 
-// 问卷列表（模拟数据）
-const questionnaireList = ref([
-  { id: 1, title: '学生满意度调查' },
-  { id: 2, title: '家校沟通情况问卷' },
-  { id: 3, title: '教师教学质量评估' }
-]);
+echarts.use([BarChart, TooltipComponent, GridComponent, AxisPointerComponent, CanvasRenderer]);
 
-// 搜索参数
-const searchParams = reactive({
-  questionnaireId: '',
-  dateRange: [],
-  status: ''
-});
+const qnaires = ref<any[]>([]);
+const qnaireId = ref<number | null>(null);
+const status = ref('');
+const keyword = ref('');
+const loading = ref(false);
 
-// 表格数据（模拟）
-const tableData = ref([
-  { id: 1, questionnaireTitle: '学生满意度调查', studentName: '张三', className: '一年级一班', submitTime: '2023-10-01 14:30', status: 'submitted' },
-  { id: 2, questionnaireTitle: '学生满意度调查', studentName: '李四', className: '一年级一班', submitTime: '', status: 'unsubmitted' },
-  { id: 3, questionnaireTitle: '家校沟通情况问卷', studentName: '王五', className: '二年级二班', submitTime: '2023-10-15 09:15', status: 'submitted' },
-  { id: 4, questionnaireTitle: '学生满意度调查', studentName: '赵六', className: '一年级二班', submitTime: '2023-10-02 16:45', status: 'submitted' },
-  { id: 5, questionnaireTitle: '教师教学质量评估', studentName: '钱七', className: '三年级一班', submitTime: '', status: 'unsubmitted' }
-]);
+const submissions = ref<any[]>([]);
+const stats = reactive<any>({ total: 0, submitted: 0, rate: 0, questions: [] });
+const questionIndex = ref(0);
 
-// 统计数据
-const totalCount = computed(() => tableData.value.length);
-const submittedCount = computed(() => tableData.value.filter(item => item.status === 'submitted').length);
-const unsubmittedCount = computed(() => tableData.value.filter(item => item.status === 'unsubmitted').length);
-const completionRate = computed(() => totalCount.value ? Math.round((submittedCount.value / totalCount.value) * 100) : 0);
+const chartRef = ref<HTMLDivElement>();
+let chart: ReturnType<typeof echarts.init> | null = null;
 
-// 详情对话框
 const detailVisible = ref(false);
-const currentDetail = ref(null);
+const currentStu = ref<any>(null);
+const answers = ref<any[]>([]);
 
-// 搜索结果
-const searchResults = () => {
-  // 实际项目中这里会调用API
-  ElMessage.success('查询功能已触发');
+const renderChart = async () => {
+  const q = stats.questions[questionIndex.value];
+  if (!q) return;
+  await nextTick();
+  if (!chartRef.value) return;
+  if (!chart) chart = echarts.init(chartRef.value);
+
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 120, right: 60, top: 20, bottom: 20 },
+    xAxis: { type: 'value', name: '人数' },
+    yAxis: {
+      type: 'category',
+      data: q.distribution.map((d: any) => d.label),
+      axisLabel: { fontSize: 12 }
+    },
+    series: [{
+      type: 'bar',
+      data: q.distribution.map((d: any) => d.count),
+      barWidth: 18,
+      itemStyle: { color: '#2f6fed', borderRadius: [0, 4, 4, 0] },
+      label: {
+        show: true,
+        position: 'right',
+        formatter: (p: any) => {
+          const item = q.distribution[p.dataIndex];
+          return `${item.count} 人 (${item.percent}%)`;
+        }
+      }
+    }]
+  }, true);
+  chart.resize();
 };
 
-// 重置搜索
-const resetSearch = () => {
-  searchParams.questionnaireId = '';
-  searchParams.dateRange = [];
-  searchParams.status = '';
+const loadStats = async () => {
+  if (!qnaireId.value) return;
+  const res: any = await getQnaireStats(qnaireId.value);
+  Object.assign(stats, res.data);
+  questionIndex.value = 0;
+  if (stats.questions.length) renderChart();
+  else chart?.clear();
 };
 
-// 查看详情
-const viewDetails = (row) => {
-  // 模拟详情数据
-  currentDetail.value = {
-    ...row,
-    questions: [
-      { title: '您对学校的教学质量满意吗？', answer: '非常满意' },
-      { title: '您认为学校的家校沟通是否及时？', answer: '及时' },
-      { title: '您对教师的教学态度评价如何？', answer: '很好' },
-      { title: '其他建议：', answer: '希望增加课外活动' }
-    ]
-  };
+const loadSubmissions = async () => {
+  if (!qnaireId.value) return;
+  loading.value = true;
+  try {
+    const res: any = await getSubmissions(qnaireId.value, {
+      status: status.value,
+      keyword: keyword.value
+    });
+    submissions.value = res.data;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const onQnaireChange = async () => {
+  await Promise.all([loadStats(), loadSubmissions()]);
+};
+
+const resetFilter = () => {
+  status.value = '';
+  keyword.value = '';
+  loadSubmissions();
+};
+
+const viewDetail = async (row: any) => {
+  currentStu.value = row;
+  const res: any = await getAnswerDetail(qnaireId.value!, row.stuId);
+  answers.value = res.data;
   detailVisible.value = true;
 };
 
-// 导出数据
-const exportData = () => {
-  ElMessage.success('数据导出成功');
+const exportCsv = () => {
+  if (!submissions.value.length) {
+    ElMessage.warning('当前没有可导出的数据');
+    return;
+  }
+  const header = ['学号', '姓名', '班级', '提交时间', '状态'];
+  const rows = submissions.value.map(r => [
+    r.stuId, r.stuName, r.className, r.submitTime || '',
+    r.status === 'submitted' ? '已提交' : '未提交'
+  ]);
+  const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `问卷提交情况_${qnaireId.value}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  ElMessage.success('导出成功');
 };
+
+const resize = () => chart?.resize();
+
+onMounted(async () => {
+  const res: any = await getQnaires();
+  qnaires.value = res.data.filter((q: any) => q.questionCount > 0);
+  if (qnaires.value.length) {
+    qnaireId.value = qnaires.value[0].qnaireId;
+    await onQnaireChange();
+  }
+  window.addEventListener('resize', resize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', resize);
+  chart?.dispose();
+});
 </script>
 
 <style scoped>
@@ -155,50 +233,82 @@ const exportData = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
-.search-card {
-  margin-bottom: 20px;
-  padding: 15px;
+.page-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #1f2d3d;
+}
+.filter-card {
+  margin-bottom: 14px;
+  border-radius: 8px;
+}
+.filter-card :deep(.el-card__body) {
   display: flex;
-  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
-.statistics-card {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 20px;
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
 }
-.stat-item {
-  flex: 1;
+.stat-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
   text-align: center;
-  padding: 15px 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 .stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 5px;
-  color: #007bff;
+  font-size: 26px;
+  font-weight: 700;
+  color: #2f6fed;
+}
+.stat-value.success {
+  color: #12b76a;
+}
+.stat-value.warning {
+  color: #f79009;
 }
 .stat-label {
-  color: #666;
+  color: #8a94a6;
+  font-size: 13px;
+  margin-top: 4px;
 }
-.detail-content {
-  max-height: 500px;
-  overflow-y: auto;
+.chart-card {
+  margin-bottom: 14px;
+  border-radius: 8px;
 }
-.questions {
-  margin-top: 20px;
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
-.question-item {
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
+.chart {
+  height: 280px;
 }
-.answer {
-  margin-top: 5px;
-  padding-left: 20px;
-  color: #666;
+.detail-head {
+  color: #606266;
+  font-size: 13px;
+  margin: 0 0 14px;
+}
+.answer-item {
+  border-bottom: 1px dashed #eee;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+.answer-item .q {
+  margin: 0 0 4px;
+  color: #303133;
+  font-weight: 500;
+}
+.answer-item .a {
+  margin: 0;
+  color: #8a94a6;
+  padding-left: 16px;
 }
 </style>

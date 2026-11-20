@@ -1,184 +1,208 @@
 <template>
-  <div class="custom-send-page">
-    <h2>自定义发送</h2>
-    <button class="write-letter-btn" @click="showWriteDialog = true">+ 写信件</button>
-    <div class="search-bar">
-      <el-input v-model="searchParams.timeRange" placeholder="请选择发送时间范围" />
-      <el-input v-model="searchParams.titleKeyword" placeholder="请输入信件标题关键词查询" />
-      <button class="search-btn" @click="handleSearch">查询</button>
-      <button class="reset-btn" @click="handleReset">重置</button>
+  <div class="custom-send">
+    <div class="page-header">
+      <h2>自定义发送</h2>
+      <el-button type="primary" @click="openWrite">写 信 件</el-button>
     </div>
-    <table class="letter-table">
-      <thead>
-      <tr>
-        <th>序号</th>
-        <th>信件标题</th>
-        <th>信件ID</th>
-        <th>是否关联问卷</th>
-        <th>问卷模板名称</th>
-        <th>操作</th>
-      </tr>
-      </thead>
-      <tbody>
-      <tr v-for="(item, index) in tableData" :key="index">
-        <td>{{ index + 1 }}</td>
-        <td>{{ item.title }}</td>
-        <td>{{ item.id }}</td>
-        <td>{{ item.related ? '是' : '否' }}</td>
-        <td>{{ item.templateName || '-' }}</td>
-        <td>
-          <el-button type="danger" size="small" @click="handleDelete(item.id)">删除</el-button>
-        </td>
-      </tr>
-      </tbody>
-    </table>
 
-    <el-dialog v-model="showWriteDialog" title="写信件">
-      <el-form :model="newLetterForm" :rules="letterRules" ref="letterFormRef">
-        <el-form-item label="信件标题" prop="title">
-          <el-input v-model="newLetterForm.title" />
+    <el-card shadow="never" class="filter-card">
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        value-format="YYYY-MM-DD"
+        style="width: 260px"
+      />
+      <el-input v-model="keyword" placeholder="请输入信件标题关键词" clearable style="width: 220px" />
+      <el-button type="primary" @click="load">查询</el-button>
+      <el-button @click="reset">重置</el-button>
+    </el-card>
+
+    <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table-column type="index" label="序号" width="70" />
+      <el-table-column prop="title" label="信件标题" min-width="220" />
+      <el-table-column prop="letterId" label="信件ID" width="100" />
+      <el-table-column label="是否关联问卷" width="130">
+        <template #default="{ row }">
+          <el-tag :type="row.qnaireId ? 'success' : 'info'" size="small">
+            {{ row.qnaireId ? '是' : '否' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="qnaireTitle" label="关联问卷" min-width="160">
+        <template #default="{ row }">{{ row.qnaireTitle || '-' }}</template>
+      </el-table-column>
+      <el-table-column prop="senderName" label="发送人" width="100" />
+      <el-table-column prop="sendTime" label="发送时间" width="170" />
+      <el-table-column label="操作" width="160" fixed="right">
+        <template #default="{ row }">
+          <el-button size="small" @click="viewLetter(row)">查看</el-button>
+          <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <!-- 写信 -->
+    <el-dialog v-model="writeVisible" title="写信件" width="580px">
+      <el-form :model="form" label-width="100px">
+        <el-form-item label="信件标题" required>
+          <el-input v-model="form.title" placeholder="请输入信件标题" />
         </el-form-item>
-        <el-form-item label="是否关联问卷" prop="related">
-          <el-switch v-model="newLetterForm.related" />
+        <el-form-item label="关联问卷">
+          <el-switch v-model="form.related" />
         </el-form-item>
-        <el-form-item v-if="newLetterForm.related" label="问卷模板名称" prop="templateName">
-          <el-input v-model="newLetterForm.templateName" />
+        <el-form-item v-if="form.related" label="选择问卷">
+          <el-select v-model="form.qnaireId" placeholder="请选择要关联的问卷模板" style="width: 100%">
+            <el-option
+              v-for="q in qnaires"
+              :key="q.qnaireId"
+              :label="`${q.title}（${q.status === 'active' ? '启用' : '停用'}）`"
+              :value="q.qnaireId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="信件正文">
+          <el-input v-model="form.content" type="textarea" :rows="5" placeholder="请输入信件内容" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showWriteDialog = false">取消</el-button>
-          <el-button type="primary" @click="submitNewLetter">确定</el-button>
-        </span>
+        <el-button @click="writeVisible = false">取消</el-button>
+        <el-button type="primary" @click="submit">发送</el-button>
       </template>
+    </el-dialog>
+
+    <!-- 查看 -->
+    <el-dialog v-model="detailVisible" title="信件详情" width="600px">
+      <h3 class="letter-title">{{ detail.title }}</h3>
+      <p class="letter-meta">{{ detail.sendTime }} · 发送人 {{ detail.senderName }}</p>
+      <p class="letter-content">{{ detail.content || '（无正文）' }}</p>
+      <p v-if="detail.qnaireTitle" class="letter-q">关联问卷：{{ detail.qnaireTitle }}</p>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { onMounted, reactive, ref } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { getLetters, addLetter, deleteLetter, getQnaires } from '../../api';
 
-const tableData = ref([
-  { title: '您对学校的教学质量满意吗', id: '202405291431', related: true, templateName: '您对学校的教学质量满意吗' },
-  { title: '您觉得学校的师资力量是否足够强大？', id: '202405291431', related: false },
-  { title: '您觉得学校的课外活动和实践教育是否充足？', id: '202405291431', related: true, templateName: '您觉得学校的课外活动和实践教育是否充足？' },
-  { title: '您对辅导员工作满意吗？', id: '202405291431', related: false }
-]);
+const list = ref<any[]>([]);
+const qnaires = ref<any[]>([]);
+const loading = ref(false);
+const keyword = ref('');
+const dateRange = ref<string[]>([]);
 
-const searchParams = reactive({
-  timeRange: '',
-  titleKeyword: ''
-});
+const writeVisible = ref(false);
+const detailVisible = ref(false);
+const detail = ref<any>({});
+const form = reactive({ title: '', content: '', related: false, qnaireId: null as number | null });
 
-const showWriteDialog = ref(false);
-const newLetterForm = reactive({
-  title: '',
-  related: false,
-  templateName: ''
-});
-
-const letterFormRef = ref(null);
-const letterRules = {
-  title: [
-    { required: true, message: '请输入信件标题', trigger: 'blur' }
-  ],
-  templateName: [
-    { required: true, message: '请输入问卷模板名称', trigger: 'blur' }
-  ]
+const load = async () => {
+  loading.value = true;
+  try {
+    const res: any = await getLetters({
+      keyword: keyword.value,
+      start: dateRange.value?.[0] || '',
+      end: dateRange.value?.[1] || ''
+    });
+    list.value = res.data;
+  } finally {
+    loading.value = false;
+  }
 };
 
-const handleSearch = () => {
-  // 此处可添加实际搜索逻辑
-  ElMessage.success('搜索功能待完善，当前参数：' + JSON.stringify(searchParams));
+const reset = () => {
+  keyword.value = '';
+  dateRange.value = [];
+  load();
 };
 
-const handleReset = () => {
-  searchParams.timeRange = '';
-  searchParams.titleKeyword = '';
-  ElMessage.success('搜索条件已重置');
+const openWrite = async () => {
+  Object.assign(form, { title: '', content: '', related: false, qnaireId: null });
+  const res: any = await getQnaires();
+  qnaires.value = res.data;
+  writeVisible.value = true;
 };
 
-const submitNewLetter = async () => {
-  if (!letterFormRef.value) return;
-  await letterFormRef.value.validate((valid) => {
-    if (valid) {
-      const newId = Date.now().toString();
-      tableData.value.push({
-        ...newLetterForm,
-        id: newId
-      });
-      showWriteDialog.value = false;
-      newLetterForm.title = '';
-      newLetterForm.related = false;
-      newLetterForm.templateName = '';
-      ElMessage.success('信件创建成功');
-    } else {
-      ElMessage.error('请正确填写表单');
-      return false;
-    }
+const submit = async () => {
+  if (!form.title) {
+    ElMessage.warning('信件标题不能为空');
+    return;
+  }
+  if (form.related && !form.qnaireId) {
+    ElMessage.warning('请选择要关联的问卷');
+    return;
+  }
+  await addLetter({
+    title: form.title,
+    content: form.content,
+    qnaireId: form.related ? form.qnaireId : null
   });
+  ElMessage.success('信件发送成功');
+  writeVisible.value = false;
+  load();
 };
 
-const handleDelete = (id) => {
-  tableData.value = tableData.value.filter(item => item.id !== id);
-  ElMessage.success('删除成功');
+const viewLetter = (row: any) => {
+  detail.value = row;
+  detailVisible.value = true;
 };
+
+const handleDelete = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定删除信件「${row.title}」吗？`, '删除确认', { type: 'warning' });
+    await deleteLetter(row.letterId);
+    ElMessage.success('已删除');
+    load();
+  } catch {
+    // 取消
+  }
+};
+
+onMounted(load);
 </script>
 
 <style scoped>
-.custom-send-page {
-  background-color: #fff;
-  padding: 20px;
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.page-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #1f2d3d;
+}
+.filter-card {
+  margin-bottom: 14px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-h2 {
-  margin-bottom: 20px;
-  color: #333;
-}
-.write-letter-btn {
-  background-color: #007bff;
-  color: #fff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-bottom: 20px;
-}
-.search-bar {
+.filter-card :deep(.el-card__body) {
   display: flex;
   gap: 10px;
-  margin-bottom: 20px;
+  align-items: center;
+  flex-wrap: wrap;
 }
-.search-bar input {
-  flex: 1;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+.letter-title {
+  margin: 0 0 6px;
+  color: #1f2d3d;
 }
-.search-btn, .reset-btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+.letter-meta {
+  color: #8a94a6;
+  font-size: 12px;
+  margin: 0 0 16px;
 }
-.search-btn {
-  background-color: #007bff;
-  color: #fff;
+.letter-content {
+  line-height: 1.9;
+  color: #303133;
+  white-space: pre-wrap;
 }
-.reset-btn {
-  background-color: #f8f9fa;
-  color: #333;
-  border: 1px solid #ddd;
-}
-.letter-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.letter-table th, .letter-table td {
-  border: 1px solid #ddd;
-  padding: 10px;
-  text-align: left;
+.letter-q {
+  margin-top: 16px;
+  color: #2f6fed;
+  font-size: 13px;
 }
 </style>
