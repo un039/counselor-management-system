@@ -1,51 +1,68 @@
 <template>
-  <div class="side-nav">
-    <div class="nav-header">
-      <h2>辅导员工作管理系统</h2>
-      <div class="user-info" v-if="userStore.userName">
-        <span class="name">{{ userStore.userName }}</span>
-        <span class="role">{{ userStore.roleName }}</span>
-        <span class="no">工号 {{ userStore.staffNo }}</span>
+  <aside class="side-nav">
+    <div class="brand">
+      <div class="brand-logo">辅</div>
+      <div class="brand-text">
+        <h1>辅导员工作台</h1>
+        <p>WUT 家校沟通管理系统</p>
       </div>
     </div>
-    <ul class="nav-menu">
-      <li :class="{ active: isActive('pc-counselor/dashboard') }">
-        <router-link to="/pc-counselor/dashboard">数据概览</router-link>
-      </li>
-      <li :class="{ active: isActive('pc-counselor/student-manage') }">
-        <router-link to="/pc-counselor/student-manage">学生信息管理</router-link>
-      </li>
-      <li :class="{ active: isActive('pc-counselor/custom-send') }">
-        <router-link to="/pc-counselor/custom-send">自定义发送</router-link>
-      </li>
-      <li :class="{ active: isActive('pc-counselor/questionnaire-manage') }">
-        <router-link to="/pc-counselor/questionnaire-manage">问卷模板管理</router-link>
-      </li>
-      <li :class="{ active: isActive('pc-counselor/questionnaire-view') }">
-        <router-link to="/pc-counselor/questionnaire-view">问卷查阅情况</router-link>
-      </li>
-      <li :class="{ active: isActive('pc-counselor/holiday-notice') }">
-        <router-link to="/pc-counselor/holiday-notice">假期去向告知</router-link>
-      </li>
-      <li :class="{ active: isActive('pc-counselor/family-chat') }">
-        <router-link to="/pc-counselor/family-chat">亲属对话管理</router-link>
-      </li>
-      <li :class="{ active: isActive('user/member-manage') }">
-        <router-link to="/user/member-manage">成员管理</router-link>
-      </li>
-    </ul>
-    <div class="logout" @click="handleLogout">退出登录</div>
-  </div>
+
+    <div class="user-card" v-if="userStore.userName">
+      <div class="avatar">{{ userStore.userName.slice(0, 1) }}</div>
+      <div class="user-meta">
+        <div class="user-name">
+          <span class="name">{{ userStore.userName }}</span>
+          <span class="role">{{ userStore.roleName }}</span>
+        </div>
+        <div class="user-no">工号 {{ userStore.staffNo }}</div>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <p class="nav-group">功能导航</p>
+      <router-link
+        v-for="item in menus"
+        :key="item.path"
+        :to="item.path"
+        class="nav-item"
+        :class="{ active: isActive(item.path) }"
+      >
+        <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
+        <span>{{ item.label }}</span>
+      </router-link>
+    </nav>
+
+    <button class="logout-btn" type="button" @click="handleLogout">
+      <el-icon><SwitchButton /></el-icon>
+      <span>退出登录</span>
+    </button>
+  </aside>
 </template>
 
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessageBox } from 'element-plus';
+import {
+  DataAnalysis, User, Promotion, Document,
+  View, Calendar, ChatDotRound, Setting, SwitchButton
+} from '@element-plus/icons-vue';
 import { useUserInfoStore } from '../stores/userInfo';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserInfoStore();
+
+const menus = [
+  { path: '/pc-counselor/dashboard', label: '数据概览', icon: DataAnalysis },
+  { path: '/pc-counselor/student-manage', label: '学生信息管理', icon: User },
+  { path: '/pc-counselor/custom-send', label: '自定义发送', icon: Promotion },
+  { path: '/pc-counselor/questionnaire-manage', label: '问卷模板管理', icon: Document },
+  { path: '/pc-counselor/questionnaire-view', label: '问卷查阅情况', icon: View },
+  { path: '/pc-counselor/holiday-notice', label: '假期去向告知', icon: Calendar },
+  { path: '/pc-counselor/family-chat', label: '亲属对话管理', icon: ChatDotRound },
+  { path: '/user/member-manage', label: '成员管理', icon: Setting }
+];
 
 const isActive = (path: string) => route.fullPath.includes(path);
 
@@ -62,80 +79,186 @@ const handleLogout = async () => {
 
 <style scoped>
 .side-nav {
-  width: 220px;
-  background: linear-gradient(180deg, #1b3a6b 0%, #2f6fed 100%);
-  color: #fff;
-  padding: 20px 14px;
+  width: var(--app-sidebar-width);
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  padding: 22px 14px 16px;
+  color: #fff;
+  background:
+    radial-gradient(420px 260px at 100% 0%, rgba(47, 111, 237, 0.35) 0%, transparent 70%),
+    linear-gradient(180deg, #0e1b34 0%, #142647 58%, #17305e 100%);
   box-sizing: border-box;
 }
-.nav-header {
-  text-align: center;
-  margin-bottom: 22px;
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px;
+  margin-bottom: 18px;
 }
-.nav-header h2 {
-  margin: 0 0 12px;
-  font-size: 15px;
-  letter-spacing: 1px;
+
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #4f8bff 0%, #2f6fed 100%);
+  box-shadow: 0 6px 16px rgba(47, 111, 237, 0.4);
 }
-.user-info {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 8px 6px;
-  font-size: 12px;
-  line-height: 1.7;
-}
-.user-info .name {
-  font-weight: 600;
-  font-size: 13px;
-}
-.user-info .role {
-  margin-left: 6px;
-  background: rgba(255, 255, 255, 0.25);
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-size: 11px;
-}
-.user-info .no {
-  display: block;
-  opacity: 0.75;
-}
-.nav-menu {
-  list-style: none;
-  padding: 0;
+
+.brand-text h1 {
   margin: 0;
-  flex: 1;
-}
-.nav-menu li {
-  margin: 6px 0;
-}
-.nav-menu li a {
-  color: #e8efff;
-  text-decoration: none;
-  display: block;
-  padding: 9px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-.nav-menu li a:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-.nav-menu li.active a {
-  background: #fff;
-  color: #2f6fed;
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #fff;
 }
-.logout {
-  text-align: center;
+
+.brand-text p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+  border-radius: var(--app-radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.user-meta {
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.user-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-name .name {
   font-size: 13px;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.logout:hover {
-  background: rgba(255, 255, 255, 0.22);
+
+.user-name .role {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: #cfe0ff;
+  background: rgba(79, 139, 255, 0.3);
+}
+
+.user-no {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.nav-menu {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.nav-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nav-group {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.68);
+  text-decoration: none;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.nav-icon {
+  font-size: 16px;
+  opacity: 0.85;
+}
+
+.nav-item:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nav-item.active {
+  color: #fff;
+  font-weight: 500;
+  background: linear-gradient(90deg, rgba(47, 111, 237, 0.95) 0%, rgba(47, 111, 237, 0.55) 100%);
+  box-shadow: 0 6px 16px rgba(47, 111, 237, 0.32);
+}
+
+.nav-item.active .nav-icon {
+  opacity: 1;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.68);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.logout-btn:hover {
+  color: #ffb4ad;
+  background: rgba(240, 68, 56, 0.14);
+  border-color: rgba(240, 68, 56, 0.35);
 }
 </style>

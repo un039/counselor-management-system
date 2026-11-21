@@ -3,9 +3,9 @@
     <CommonAside />
     <div class="right-content">
       <CommonHeader />
-      <div class="main-content">
+      <main class="main-content">
         <router-view />
-      </div>
+      </main>
     </div>
   </div>
 </template>
@@ -19,18 +19,22 @@ import CommonHeader from '../components/CommonHeader.vue';
 .layout-container {
   display: flex;
   height: 100vh;
-  background-color: #fff;
-  color: #333;
+  overflow: hidden;
+  background-color: var(--app-bg);
+  color: var(--app-text);
 }
+
 .right-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
+
 .main-content {
   flex: 1;
-  padding: 20px;
+  padding: 24px;
   overflow-y: auto;
-  background-color: #f8f9fa;
+  background-color: var(--app-bg);
 }
 </style>
